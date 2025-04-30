@@ -61,7 +61,13 @@ class EqualWeightPortfolio:
         """
         TODO: Complete Task 1 Below
         """
+        num_assets = len(assets)
+        weight = 1.0 / num_assets
 
+        # Assign equal weights to all assets for each date
+        for date in df.index:
+            self.portfolio_weights.loc[date, assets] = weight
+            self.portfolio_weights.loc[date, self.exclude] = 0.0
         """
         TODO: Complete Task 1 Above
         """
@@ -112,7 +118,20 @@ class RiskParityPortfolio:
         """
         TODO: Complete Task 2 Below
         """
+        for i in range(self.lookback + 1, len(df)):
+            # Get returns for the lookback period
+            returns_window = df_returns[assets].iloc[i - self.lookback : i]
 
+            # Calculate volatility (standard deviation) for each asset
+            volatilities = returns_window.std()
+
+            # Calculate inverse volatility weights
+            inverse_volatilities = 1 / volatilities
+            weights = inverse_volatilities / inverse_volatilities.sum()
+
+            # Assign weights to portfolio
+            self.portfolio_weights.loc[df.index[i], assets] = weights
+            self.portfolio_weights.loc[df.index[i], self.exclude] = 0.0
         """
         TODO: Complete Task 2 Above
         """
@@ -184,11 +203,22 @@ class MeanVariancePortfolio:
                 """
                 TODO: Complete Task 3 Below
                 """
+                # Add decision variables (portfolio weights)
+                w = model.addMVar(n, name="w", lb=0, ub=1)
 
-                # Sample Code: Initialize Decision w and the Objective
-                # NOTE: You can modify the following code
-                w = model.addMVar(n, name="w", ub=1)
-                model.setObjective(w.sum(), gp.GRB.MAXIMIZE)
+                # Set the objective: maximize expected return minus risk penalty
+                # w^T * mu - (gamma/2) * w^T * Sigma * w
+                if gamma > 0:
+                    risk_term = gamma * 0.5 * w @ Sigma @ w
+                    model.setObjective(w @ mu - risk_term, gp.GRB.MAXIMIZE)
+                else:
+                    model.setObjective(w @ mu, gp.GRB.MAXIMIZE)
+
+                # Add constraint: sum of weights = 1 (fully invested)
+                model.addConstr(w.sum() == 1, "budget")
+
+                # Add non-negativity constraints (long-only)
+                # These are already handled by the lb=0 in the variable definition
 
                 """
                 TODO: Complete Task 3 Above
